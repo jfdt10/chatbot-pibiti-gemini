@@ -248,3 +248,26 @@ body {
         right: 20px;
     }
 }
+
+.bot-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.option-btn {
+    padding: 8px 14px;
+    background-color: var(--blue);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background-color 0.2s;
+}
+
+.option-btn:hover {
+    background-color: #2c7ae0;
+}
+
