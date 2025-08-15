@@ -111,25 +111,74 @@ async function sendMessage() {
 
     // Etapas de Polya
     if (currentStep === "entendimento_input") {
-        sendToAPI(message, "Valide se estas entradas fazem sentido.");
+        const resposta = message;
+    
+        // Pedir validação focada em completude
+        const result = await model.generateContent(`
+            O aluno respondeu sobre as ENTRADAS: "${resposta}".
+            Verifique se está claro e completo.
+            Se estiver completo → apenas confirme e elogie.
+            Se estiver incompleto ou ambíguo → diga que há informações faltantes
+            e peça que o aluno proponha suposições para completar os dados.
+            Responda de forma breve.
+        `);
+    
+        const feedback = (await result.response).text();
+        addMessage(feedback);
+    
+        if (feedback.toLowerCase().includes("faltante") || feedback.toLowerCase().includes("incompleto") || feedback.toLowerCase().includes("ambíguo")) {
+            // entra no subpasso
+            currentStep = "entendimento_input_faltante";
+            return;
+        } else {
+            // segue normal
+            currentStep = "entendimento_output";
+            addMessage("Agora, quais serão as SAÍDAS (resultados) do programa?");
+            return;
+        }
+    }
+    
+    if (currentStep === "entendimento_input_faltante") {
+        // aqui o aluno responde propondo hipóteses
+        const result = await model.generateContent(`
+            O aluno está tentando propor informações faltantes para as ENTRADAS.
+            Responda validando se as hipóteses fazem sentido dentro do contexto
+            e incentive a seguir adiante.
+        `);
+        const feedback = (await result.response).text();
+        addMessage(feedback);
+    
+        // agora segue para a próxima etapa
         currentStep = "entendimento_output";
-        addMessage("Agora, quais serão as SAÍDAS (resultados) do programa?");
+        addMessage("Muito bem. Agora, quais serão as SAÍDAS (resultados) do programa?");
         return;
     }
-
+    
+    
     if (currentStep === "entendimento_output") {
-        sendToAPI(message, "Valide se esta saída é adequada.");
+        await sendToAPI(message, `
+            Valide se a resposta do estudante descreve corretamente as SAÍDAS (resultados) do problema.
+            Se estiver correta, elogie e confirme.
+            Se estiver incompleta ou errada, dê UMA dica simples de melhoria.
+            Responda de forma breve e clara.
+        `);
         currentStep = "entendimento_condicoes";
-        addMessage("Por fim, existem RESTRIÇÕES ou CONDIÇÕES especiais?");
+        addMessage("Existem RESTRIÇÕES ou CONDIÇÕES especiais a considerar?");
         return;
     }
-
+    
     if (currentStep === "entendimento_condicoes") {
-        sendToAPI(message, "Valide estas restrições ou condições.");
+        await sendToAPI(message, `
+            Valide se as restrições ou condições listadas pelo estudante fazem sentido para este problema.
+            Se estiverem corretas, elogie e confirme.
+            Se estiverem faltando ou incorretas, sugira UMA dica simples.
+            Responda de forma breve e clara.
+        `);
         currentStep = "desenvolvimento";
-        addMessage("Ótimo! Agora vamos para a etapa de DESENVOLVIMENTO.\nDescreva como você resolveria este problema.");
+        addMessage("Agora vamos para a etapa de DESENVOLVIMENTO.\nComo você resolveria este problema passo a passo?");
         return;
     }
+    
 
     if (currentStep === "desenvolvimento") {
         sendToAPI(message, "Analise este plano de resolução e sugira melhorias.");
