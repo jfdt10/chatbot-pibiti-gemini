@@ -14,11 +14,11 @@ async function lerCSV(url) {
 const entendimentoInfo = `
 Você é um assistente educacional de programação que segue a metodologia de Polya.
 Fluxo para cada questão:
-1. Perguntar as ENTRADAS do problema e validar.
-2. Perguntar as SAÍDAS do problema e validar.
-3. Perguntar as RESTRIÇÕES e validar.
-4. Conduzir o aluno a propor um PLANO DE DESENVOLVIMENTO da solução.
-Sempre dê dicas se a resposta estiver incompleta ou incorreta.
+1. Perguntar ENTRADAS e validar (aceitar hipóteses se incompleto).
+2. Perguntar SAÍDAS e validar (aceitar hipóteses se incompleto).
+3. Perguntar RESTRIÇÕES e validar (aceitar hipóteses se incompleto).
+4. Conduzir o aluno a propor um PLANO DE DESENVOLVIMENTO.
+Responda sempre de forma breve e clara.
 `;
 
 const chatWindow = document.getElementById('chatWindow');
@@ -31,6 +31,14 @@ const chatMessages = document.getElementById('chatMessages');
 let model = null;
 let currentStep = null;
 let questaoAtual = "";
+
+// variáveis para armazenar respostas
+let entradas = "";
+let hipoteseEntradas = "";
+let saidas = "";
+let hipoteseSaidas = "";
+let restricoes = "";
+let hipoteseRestricoes = "";
 
 // ---------------------- Interface ----------------------
 
@@ -71,7 +79,7 @@ function hideTyping() {
 async function sendToAPI(message, context = "") {
     showTyping();
     try {
-        let text = "Isso é uma resposta simulada.";
+        let text = "Resposta simulada.";
         if (model) {
             const result = await model.generateContent(`${context}\nQuestão: ${questaoAtual}\nAluno: ${message}`);
             const response = await result.response;
@@ -79,6 +87,7 @@ async function sendToAPI(message, context = "") {
         }
         hideTyping();
         addMessage(text);
+        return text;
     } catch (error) {
         console.error("Erro:", error);
         hideTyping();
@@ -99,9 +108,9 @@ async function sendMessage() {
     if (!questaoAtual) {
         const numero = parseInt(message);
         if (!isNaN(numero) && numero >= 2 && numero <= 42) {
-            questaoAtual = dadosPlanilha[numero - 1][0];
+            questaoAtual = dadosPlanilha[numero - 1].join(" "); // pega enunciado completo
             addMessage(`Questão ${numero}: "${questaoAtual}"`);
-            addMessage("Vamos começar a etapa de entendimento.\nQuais são as ENTRADAS (dados) que o programa receberá?");
+            addMessage("Vamos começar pela etapa de ENTENDIMENTO.\nQuais são as ENTRADAS (dados de entrada) que o programa receberá?");
             currentStep = "entendimento_input";
         } else {
             addMessage("Digite um número de questão válido (2 a 42).", false, true);
@@ -109,79 +118,99 @@ async function sendMessage() {
         return;
     }
 
-    // Etapas de Polya
+    // ---------------- ENTRADAS ----------------
     if (currentStep === "entendimento_input") {
-        const resposta = message;
-    
-        // Pedir validação focada em completude
-        const result = await model.generateContent(`
-            O aluno respondeu sobre as ENTRADAS: "${resposta}".
-            Verifique se está claro e completo.
-            Se estiver completo → apenas confirme e elogie.
-            Se estiver incompleto ou ambíguo → diga que há informações faltantes
-            e peça que o aluno proponha suposições para completar os dados.
-            Responda de forma breve.
+        const feedback = await sendToAPI(message, `
+            O aluno respondeu sobre as ENTRADAS.
+            Responda em até 2 frases.
+            Se estiver completo → confirme positivamente.
+            Se estiver incompleto ou ambíguo → peça hipóteses adicionais.
         `);
-    
-        const feedback = (await result.response).text();
-        addMessage(feedback);
-    
-        if (feedback.toLowerCase().includes("faltante") || feedback.toLowerCase().includes("incompleto") || feedback.toLowerCase().includes("ambíguo")) {
-            // entra no subpasso
+
+        if (feedback.toLowerCase().includes("incompleto") || feedback.toLowerCase().includes("ambíguo")) {
             currentStep = "entendimento_input_faltante";
-            return;
         } else {
-            // segue normal
+            entradas = message;
             currentStep = "entendimento_output";
             addMessage("Agora, quais serão as SAÍDAS (resultados) do programa?");
-            return;
         }
+        return;
     }
-    
+
     if (currentStep === "entendimento_input_faltante") {
-        // aqui o aluno responde propondo hipóteses
-        const result = await model.generateContent(`
-            O aluno está tentando propor informações faltantes para as ENTRADAS.
-            Responda validando se as hipóteses fazem sentido dentro do contexto
-            e incentive a seguir adiante.
-        `);
-        const feedback = (await result.response).text();
-        addMessage(feedback);
-    
-        // agora segue para a próxima etapa
+        hipoteseEntradas = message;
+        addMessage("Boa hipótese! Agora seguimos.");
         currentStep = "entendimento_output";
-        addMessage("Muito bem. Agora, quais serão as SAÍDAS (resultados) do programa?");
+        addMessage("Quais serão as SAÍDAS (resultados) do programa?");
         return;
     }
-    
-    
-    if (currentStep === "entendimento_output") {
-        await sendToAPI(message, `
-            Valide se a resposta do estudante descreve corretamente as SAÍDAS (resultados) do problema.
-            Se estiver correta, elogie e confirme.
-            Se estiver incompleta ou errada, dê UMA dica simples de melhoria.
-            Responda de forma breve e clara.
-        `);
-        currentStep = "entendimento_condicoes";
-        addMessage("Existem RESTRIÇÕES ou CONDIÇÕES especiais a considerar?");
-        return;
-    }
-    
-    if (currentStep === "entendimento_condicoes") {
-        await sendToAPI(message, `
-            Valide se as restrições ou condições listadas pelo estudante fazem sentido para este problema.
-            Se estiverem corretas, elogie e confirme.
-            Se estiverem faltando ou incorretas, sugira UMA dica simples.
-            Responda de forma breve e clara.
-        `);
-        currentStep = "desenvolvimento";
-        addMessage("Agora vamos para a etapa de DESENVOLVIMENTO.\nComo você resolveria este problema passo a passo?");
+
+    if (respostaDetectadaComoHipotese) {
+        addMessage("Boa hipótese! Vamos em frente. Agora, considerando essa hipótese, quais serão as ENTRADAS (dados) que o programa receberá?");
+        etapaAtual = "entradas";  // força voltar para entradas
         return;
     }
     
 
+    // ---------------- SAÍDAS ----------------
+    if (currentStep === "entendimento_output") {
+        const feedback = await sendToAPI(message, `
+            O aluno respondeu sobre as SAÍDAS.
+            Responda em até 2 frases.
+            Se estiver correto → confirme.
+            Se estiver incompleto ou ambíguo → peça hipóteses.
+        `);
+
+        if (feedback.toLowerCase().includes("incompleto") || feedback.toLowerCase().includes("ambíguo")) {
+            currentStep = "entendimento_output_faltante";
+        } else {
+            saidas = message;
+            currentStep = "entendimento_condicoes";
+            addMessage("Existem RESTRIÇÕES ou CONDIÇÕES especiais a considerar?");
+        }
+        return;
+    }
+
+    if (currentStep === "entendimento_output_faltante") {
+        hipoteseSaidas = message;
+        addMessage("Boa hipótese! Vamos em frente.");
+        currentStep = "entendimento_condicoes";
+        addMessage("Existem RESTRIÇÕES ou CONDIÇÕES especiais a considerar?");
+        return;
+    }
+
+    // ---------------- RESTRIÇÕES ----------------
+    if (currentStep === "entendimento_condicoes") {
+        const feedback = await sendToAPI(message, `
+            O aluno respondeu sobre as RESTRIÇÕES.
+            Responda em até 2 frases.
+            Se estiver ok → confirme.
+            Se estiver faltando → peça hipóteses.
+        `);
+
+        if (feedback.toLowerCase().includes("incompleto") || feedback.toLowerCase().includes("ambíguo") || feedback.toLowerCase().includes("faltando")) {
+            currentStep = "entendimento_condicoes_faltante";
+        } else {
+            restricoes = message;
+            currentStep = "desenvolvimento";
+            addMessage("Muito bem! Agora vamos para a etapa de DESENVOLVIMENTO.\nComo você resolveria este problema passo a passo?");
+        }
+        return;
+    }
+
+    if (currentStep === "entendimento_condicoes_faltante") {
+        hipoteseRestricoes = message;
+        addMessage("Perfeito, suposição válida. Agora seguimos.");
+        currentStep = "desenvolvimento";
+        addMessage("Vamos para a etapa de DESENVOLVIMENTO. Como você resolveria este problema passo a passo?");
+        return;
+    }
+
+    // ---------------- DESENVOLVIMENTO ----------------
     if (currentStep === "desenvolvimento") {
-        sendToAPI(message, "Analise este plano de resolução e sugira melhorias.");
+        await sendToAPI(message, `
+            Analise este plano de resolução e sugira UMA melhoria simples.
+        `);
         currentStep = null;
         addMessage("Muito bem! Finalizamos todas as etapas para esta questão.");
         return;
