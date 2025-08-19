@@ -1,142 +1,238 @@
-const API_KEY = "AIzaSyC_EiB1UcZKAyY4gqPonBAgbLRBVq3bFJU"; // <- cole sua chave aqui
+const API_KEY = "AIzaSyC_EiB1UcZKAyY4gqPonBAgbLRBVq3bFJU"; // <- cole sua chave aqui 
 
-// Link CSV 
-const URL_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSdy74VMFCuowXzxgtAcYPDLmU6cj4crafrcd5DrvbltDRYN-_2JbaJZonYOK710n8sVUOhwS5bf9Tl/pub?output=csv";  // troque pelo seu link
+// Link CSV da planilha 
+const URL_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSdy74VMFCuowXzxgtAcYPDLmU6cj4crafrcd5DrvbltDRYN-_2JbaJZonYOK710n8sVUOhwS5bf9Tl/pub?output=csv"; 
+let dadosPlanilha = []; 
 
-let dadosPlanilha = [];
-
-async function lerCSV(url) {
-    const resp = await fetch(url);
-    const text = await resp.text();
-    const linhas = text.trim().split("\n").map(linha => linha.split(","));
-    return linhas;
-}
+async function lerCSV(url) { 
+  const resp = await fetch(url); 
+  const text = await resp.text(); 
+  const linhas = text.trim().split("\n").map(l => l.split(",")); 
+  return linhas; 
+} 
 
 const entendimentoInfo = `
-Seu sistema atua como assistente educacional de programação. 
-O fluxo é: perguntar o número da questão, ler a questão da planilha e explicar sobre o que se trata.
-`;
+    Você é um assistente educacional de programação que segue a metodologia de Polya. 
+    Fluxo para cada questão: 
+    1. Perguntar ENTRADAS e validar. 
+    2. Perguntar SAÍDAS e validar. 
+    3. Perguntar RESTRIÇÕES e validar. 
+    4. Conduzir o aluno a propor um PLANO DE DESENVOLVIMENTO. 
+    Responda sempre de forma breve, clara e incentivadora: 
+    - Se estiver incompleto: use a tag fixa "🤔 Vamos pensar mais um pouco..." (máx. 2 frases) 
+    - Se a resposta estiver completa: comece com "✅ Legal!" e confirme de forma breve. 
+    Não repita instruções já dadas.
+    Utilize emojis sempre que conveniente. 
+`; 
 
-const chatWindow = document.getElementById('chatWindow');
-const chatBtn = document.getElementById('chatBtn');
-const closeBtn = document.getElementById('closeBtn');
-const messageInput = document.getElementById('messageInput');
-const sendBtn = document.getElementById('sendBtn');
-const chatMessages = document.getElementById('chatMessages');
+const chatWindow = document.getElementById('chatWindow'); 
+const chatBtn = document.getElementById('chatBtn'); 
+const closeBtn = document.getElementById('closeBtn'); 
+const messageInput = document.getElementById('messageInput'); 
+const sendBtn = document.getElementById('sendBtn'); 
+const chatMessages = document.getElementById('chatMessages'); 
 
-let model = null;
-let aguardandoNumeroQuestao = true;
+let model = null; 
+let currentStep = null; 
+let questaoAtual = ""; 
 
-function toggleChat() {
-    chatWindow.classList.toggle('open');
-    if (chatWindow.classList.contains('open')) {
-        messageInput.focus();
-    }
-}
+// variáveis para armazenar respostas 
+let entradas = ""; 
+let hipoteseEntradas = ""; 
+let saidas = ""; 
+let hipoteseSaidas = ""; 
+let restricoes = ""; 
+let hipoteseRestricoes = ""; 
 
-function addMessage(content, isUser = false, isError = false) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${isUser ? 'user' : isError ? 'error' : 'bot'}`;
-    messageDiv.textContent = content;
-    chatMessages.appendChild(messageDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-}
+// ---------------------- Interface ---------------------- 
+function toggleChat() { 
+  chatWindow.classList.toggle('open'); 
+  if (chatWindow.classList.contains('open')) { 
+    messageInput.focus(); 
+  } 
+} 
 
-function showTyping() {
-    const typingDiv = document.createElement('div');
-    typingDiv.className = 'typing-indicator';
-    typingDiv.id = 'typing';
-    typingDiv.innerHTML = `
-        <div class="typing-dots">
-            <span></span><span></span><span></span>
-        </div>`;
-    chatMessages.appendChild(typingDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-}
+function addMessage(content, isUser = false, isError = false) { 
+  const messageDiv = document.createElement('div'); 
+  messageDiv.className = `message ${isUser ? 'user' : isError ? 'error' : 'bot'}`; 
+  messageDiv.textContent = content; 
+  chatMessages.appendChild(messageDiv); 
+  chatMessages.scrollTop = chatMessages.scrollHeight; 
+} 
 
-function hideTyping() {
-    const typing = document.getElementById('typing');
-    if (typing) typing.remove();
-}
+function showTyping() { 
+  const typingDiv = document.createElement('div'); 
+  typingDiv.className = 'typing-indicator'; 
+  typingDiv.id = 'typing'; 
+  typingDiv.innerHTML = `<div class="typing-dots"> <span></span><span></span><span></span> </div>`; 
+  chatMessages.appendChild(typingDiv); 
+  chatMessages.scrollTop = chatMessages.scrollHeight; 
+} 
 
-async function sendMessage() {
-    const message = messageInput.value.trim();
-    if (!message) return;
+function hideTyping() { 
+  const typing = document.getElementById('typing'); 
+  if (typing) typing.remove(); 
+} 
 
-    addMessage(message, true);
-    messageInput.value = '';
-    showTyping();
+// ---------------------- API ---------------------- 
+async function sendToAPI(message, context = "") { 
+  showTyping(); 
+  try { 
+    let text = "Resposta simulada."; 
+    if (model) { 
+      const prompt = `${context}\nQuestão: ${questaoAtual}\nAluno: ${message}`; 
+      const result = await model.generateContent(prompt); 
+      text = result.response.text(); 
+    } 
+    hideTyping(); 
+    addMessage(text); 
+    return text; 
+  } catch (error) { 
+    console.error("Erro:", error); 
+    hideTyping(); 
+    addMessage("Erro ao consultar a API.", false, true); 
+  } 
+} 
 
-    try {
-        let text = "";
+// ---------------------- Fluxo ---------------------- 
+async function sendMessage() { 
+  const message = messageInput.value.trim(); 
+  if (!message) return; 
 
-        if (aguardandoNumeroQuestao) {
-            // Verifica se o que foi digitado é um número válido
-            const numero = parseInt(message);
-            if (!isNaN(numero) && numero >= 2 && numero <= 42) {
-                aguardandoNumeroQuestao = false;
-                const questao = dadosPlanilha[numero - 1][0];
-                text = `A questão ${numero} diz: "${questao}". Agora vou te explicar sobre o que ela trata.`;
+  addMessage(message, true); 
+  messageInput.value = ''; 
 
-                // Consulta ao modelo para explicar
-                if (model) {
-                    const result = await model.generateContent(`Explique para um estudante iniciante: ${questao}`);
-                    const response = await result.response;
-                    text += "\n\n" + response.text();
-                }
-            } else {
-                text = "Por favor, digite um número de questão entre 2 e 42.";
-            }
-        } else {
+  // Caso inicial: aluno escolhe a questão 
+  if (!questaoAtual) { 
+    const numero = parseInt(message); 
+    if (!isNaN(numero) && numero >= 2 && numero <= 42) { 
+      questaoAtual = dadosPlanilha[numero - 1][0]; 
+      addMessage(`Questão ${numero}: "${questaoAtual}"`); 
+      addMessage("Vamos começar pela etapa de ENTENDIMENTO.\nQuais são as ENTRADAS (dados de entrada) que o programa receberá?"); 
+      currentStep = "entendimento_input"; 
+    } else { 
+      addMessage("Digite um número de questão válido (2 a 42).", false, true); 
+    } 
+    return; 
+  } 
+
+  // ---------------- ENTRADAS ---------------- 
+  if (currentStep === "entendimento_input") { 
+    const feedback = await sendToAPI(message, "O aluno respondeu sobre as ENTRADAS. Responda amigavelmente e incentive a pensar"); 
     
-            if (model) {
-                const result = await model.generateContent(message);
-                const response = await result.response;
-                text = response.text();
-            }
-        }
+    if (feedback.startsWith("🤔")) { 
+      currentStep = "entendimento_input_faltante"; 
+    } else { 
+      entradas = message; 
+      currentStep = "entendimento_output"; 
+      addMessage("Agora, quais serão as SAÍDAS (resultados) do programa?"); 
+    } 
+    return; 
+  } 
 
-        hideTyping();
-        addMessage(text);
+  if (currentStep === "entendimento_input_faltante") { 
+    hipoteseEntradas = message; 
+    addMessage("Boa! Vamos continuar."); 
+    currentStep = "entendimento_output"; 
+    addMessage("Quais serão as SAÍDAS (resultados) do programa?"); 
+    return; 
+  } 
 
-    } catch (error) {
-        console.error("Erro:", error);
-        hideTyping();
-        addMessage("Desculpe, ocorreu um erro ao processar sua solicitação.", false, true);
-    }
+  // ---------------- SAÍDAS ---------------- 
+  if (currentStep === "entendimento_output") { 
+    const feedback = await sendToAPI(message, "O aluno respondeu sobre as SAÍDAS. Responda amigavelmente"); 
+    
+    if (feedback.startsWith("🤔")) { 
+      currentStep = "entendimento_output_faltante"; 
+    } else { 
+      saidas = message; 
+      currentStep = "entendimento_condicoes"; 
+      addMessage("Existem RESTRIÇÕES ou CONDIÇÕES especiais a considerar?"); 
+    } 
+    return; 
+  } 
 
-    messageInput.focus();
-}
+  if (currentStep === "entendimento_output_faltante") { 
+    hipoteseSaidas = message; 
+    addMessage("Boa! Vamos em frente."); 
+    currentStep = "entendimento_condicoes"; 
+    addMessage("Existem RESTRIÇÕES ou CONDIÇÕES especiais a considerar?"); 
+    return; 
+  } 
 
-chatBtn.addEventListener('click', toggleChat);
-closeBtn.addEventListener('click', toggleChat);
-sendBtn.addEventListener('click', sendMessage);
-messageInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-    }
-});
+  // ---------------- RESTRIÇÕES ---------------- 
+  if (currentStep === "entendimento_condicoes") { 
+    const feedback = await sendToAPI(message, "O aluno respondeu sobre as RESTRIÇÕES. Responda amigavelmente"); 
+    
+    if (feedback.startsWith("🤔")) { 
+      currentStep = "entendimento_condicoes_faltante"; 
+    } else { 
+      restricoes = message; 
+      currentStep = "desenvolvimento"; 
+      addMessage("Muito bem! Agora vamos para a etapa de DESENVOLVIMENTO.\nComo você resolveria este problema passo a passo?"); 
+    } 
+    return; 
+  } 
 
-async function initAPI() {
-    if (!API_KEY) {
-        console.warn("Nenhuma chave da API definida. Usando modo simulado.");
-    } else {
-        try {
-            const { GoogleGenerativeAI } = await import("https://esm.run/@google/generative-ai");
-            const genAI = new GoogleGenerativeAI(API_KEY);
-            model = genAI.getGenerativeModel({
-                model: "gemini-1.5-flash",
-                systemInstruction: entendimentoInfo
-            });
-            console.log("API carregada com sucesso.");
-        } catch (error) {
-            console.error("Erro ao carregar a API do Gemini:", error);
-        }
-    }
+  if (currentStep === "entendimento_condicoes_faltante") { 
+    hipoteseRestricoes = message; 
+    addMessage("Isso mesmo, você está pegando o jeito."); 
+    currentStep = "desenvolvimento"; 
+    addMessage("Vamos para a etapa de DESENVOLVIMENTO. Como você resolveria este problema passo a passo?"); 
+    return; 
+  } 
 
-    dadosPlanilha = await lerCSV(URL_CSV);
-    addMessage("Olá! Me diga o número da questão que você quer ajuda (2 a 42).");
-}
+  // ---------------- DESENVOLVIMENTO ---------------- 
+  if (currentStep === "desenvolvimento") { 
+    await sendToAPI(message, "Analise este plano de resolução e sugira UMA melhoria simples."); 
+
+    // Resumo final 
+    //addMessage("✅ Resumo da sua resposta:"); 
+    //addMessage(`ENTRADAS: ${entradas || hipoteseEntradas}`); 
+    //addMessage(`SAÍDAS: ${saidas || hipoteseSaidas}`); 
+    //addMessage(`RESTRIÇÕES: ${restricoes || hipoteseRestricoes}`); 
+    currentStep = null; 
+    addMessage("Muito bem! Finalizamos todas as etapas do ENTENDIMENTO. Resta mais alguma dúvida?"); 
+    return; 
+  } 
+
+  // fallback 
+  sendToAPI(message); 
+} 
+
+// ---------------------- Eventos ---------------------- 
+chatBtn.addEventListener('click', toggleChat); 
+closeBtn.addEventListener('click', toggleChat); 
+sendBtn.addEventListener('click', sendMessage); 
+
+messageInput.addEventListener('keypress', (e) => { 
+  if (e.key === 'Enter' && !e.shiftKey) { 
+    e.preventDefault(); 
+    sendMessage(); 
+  } 
+}); 
+
+// ---------------------- Inicialização ---------------------- 
+async function initAPI() { 
+  if (!API_KEY) { 
+    console.warn("Nenhuma chave definida. Usando modo simulado."); 
+  } else { 
+    try { 
+      const { GoogleGenerativeAI } = await import("https://esm.run/@google/generative-ai"); 
+      const genAI = new GoogleGenerativeAI(API_KEY); 
+      model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", systemInstruction: entendimentoInfo }); 
+      console.log("API carregada com sucesso."); 
+    } catch (error) { 
+      console.error("Erro ao carregar a API:", error); 
+    } 
+  } 
+
+  try { 
+    dadosPlanilha = await lerCSV(URL_CSV); 
+    addMessage("Digite o número da questão que você quer ajuda (2 a 42)."); 
+  } catch (error) { 
+    addMessage("Não consegui carregar o banco de questões.", false, true); 
+  } 
+} 
 
 initAPI();
