@@ -9,7 +9,9 @@ async function lerCSV(url) {
   const text = await resp.text(); 
   const linhas = text.trim().split("\n").map(l => l.split(",")); 
   return linhas; 
-} 
+}
+
+// ---------------------- Prompts ----------------------
 
 const entendimentoInfo = `
     Você é um assistente educacional de programação que segue a metodologia de Polya. 
@@ -25,6 +27,22 @@ const entendimentoInfo = `
     Utilize emojis sempre que conveniente. 
 `; 
 
+const codificacaoInfo = `
+    Agora você está na etapa de CODIFICAÇÃO, seguindo a metodologia de Polya.  
+    Fluxo:  
+    1. Incentivar o aluno a propor um esqueleto inicial de código (mesmo que incompleto).  
+    2. Conduzir o aluno em pequenas etapas:  
+       - Declaração das variáveis de entrada.  
+       - Processamento ou cálculos.  
+       - Exibição dos resultados.
+       - Código completo  
+    3. Sempre dar feedback curto, motivador e claro.  
+    4. Sugerir UMA melhoria ou próximo passo por vez.  
+    Use exemplos simples e trechos de código quando for útil.  
+`;
+
+// ---------------------- INTERFACE ----------------------
+
 const chatWindow = document.getElementById('chatWindow'); 
 const chatBtn = document.getElementById('chatBtn'); 
 const closeBtn = document.getElementById('closeBtn'); 
@@ -37,6 +55,7 @@ let currentStep = null;
 let questaoAtual = ""; 
 
 // variáveis para armazenar respostas 
+
 let entradas = ""; 
 let hipoteseEntradas = ""; 
 let saidas = ""; 
@@ -44,7 +63,8 @@ let hipoteseSaidas = "";
 let restricoes = ""; 
 let hipoteseRestricoes = ""; 
 
-// ---------------------- Interface ---------------------- 
+// ---------------------- Funções de UI ----------------------
+
 function toggleChat() { 
   chatWindow.classList.toggle('open'); 
   if (chatWindow.classList.contains('open')) { 
@@ -75,6 +95,7 @@ function hideTyping() {
 } 
 
 // ---------------------- API ---------------------- 
+
 async function sendToAPI(message, context = "") { 
   showTyping(); 
   try { 
@@ -94,7 +115,8 @@ async function sendToAPI(message, context = "") {
   } 
 } 
 
-// ---------------------- Fluxo ---------------------- 
+// ---------------------- Fluxo ----------------------
+
 async function sendMessage() { 
   const message = messageInput.value.trim(); 
   if (!message) return; 
@@ -103,6 +125,7 @@ async function sendMessage() {
   messageInput.value = ''; 
 
   // Caso inicial: aluno escolhe a questão 
+
   if (!questaoAtual) { 
     const numero = parseInt(message); 
     if (!isNaN(numero) && numero >= 2 && numero <= 42) { 
@@ -116,9 +139,12 @@ async function sendMessage() {
     return; 
   } 
 
+  // ---------------- ENTENDIMENTO ---------------- 
+
   // ---------------- ENTRADAS ---------------- 
+
   if (currentStep === "entendimento_input") { 
-    const feedback = await sendToAPI(message, "O aluno respondeu sobre as ENTRADAS. Responda amigavelmente e incentive a pensar"); 
+    const feedback = await sendToAPI(message, "O estudante respondeu sobre as ENTRADAS. Responda amigavelmente e incentive a pensar"); 
     
     if (feedback.startsWith("🤔")) { 
       currentStep = "entendimento_input_faltante"; 
@@ -139,6 +165,7 @@ async function sendMessage() {
   } 
 
   // ---------------- SAÍDAS ---------------- 
+
   if (currentStep === "entendimento_output") { 
     const feedback = await sendToAPI(message, "O aluno respondeu sobre as SAÍDAS. Responda amigavelmente"); 
     
@@ -161,6 +188,7 @@ async function sendMessage() {
   } 
 
   // ---------------- RESTRIÇÕES ---------------- 
+
   if (currentStep === "entendimento_condicoes") { 
     const feedback = await sendToAPI(message, "O aluno respondeu sobre as RESTRIÇÕES. Responda amigavelmente"); 
     
@@ -183,22 +211,49 @@ async function sendMessage() {
   } 
 
   // ---------------- DESENVOLVIMENTO ---------------- 
-  if (currentStep === "desenvolvimento") { 
-    await sendToAPI(message, "Analise este plano de resolução e sugira UMA melhoria simples."); 
 
-    // Resumo final 
-    //addMessage("✅ Resumo da sua resposta:"); 
-    //addMessage(`ENTRADAS: ${entradas || hipoteseEntradas}`); 
-    //addMessage(`SAÍDAS: ${saidas || hipoteseSaidas}`); 
-    //addMessage(`RESTRIÇÕES: ${restricoes || hipoteseRestricoes}`); 
+  if (currentStep === "desenvolvimento") { 
+    await sendToAPI(message, "Analise este plano de resolução se não precisar de melhoria, elogie o estudante."); 
+    currentStep = "codificacao_variaveis"; 
+    addMessage("✅ Legal! Finalizamos a etapa de ENTENDIMENTO."); 
+    addMessage("Agora vamos para a etapa de CODIFICAÇÃO.\ncomo você declararia as variáveis de entrada?"); 
+    return; 
+  } 
+
+
+// ---------------- CODIFICAÇÃO ---------------- 
+
+// ---------------- ENTRADA E PROCESSAMENTO ---------------- 
+
+  if (currentStep === "codificacao_variaveis") { 
+    await sendToAPI(message, codificacaoInfo + "\nO aluno declarou o código das variáveis de entrada do programa. Se não precisar de melhoria pergunte sobre o processamento ou cálculo"); 
+    currentStep = "codificacao_processamento"; 
+    //addMessage("Boa! E como ficaria o processamento deste programa?"); 
+    return; 
+  } 
+
+// ---------------- RESULTADO ----------------
+
+  if (currentStep === "codificacao_processamento") { 
+    await sendToAPI(message, codificacaoInfo + "\nO aluno escreveu o código do processamento do programa, ele já tinha te mandado o código da entrada. Se não precisar de melhoria pergunte sobre a saída do programa"); 
+    currentStep = "codificacao_saida"; 
+    //addMessage("Perfeito 👍 Agora, como você exibiria o resultado?"); 
+    return; 
+  } 
+
+// ---------------- FINALIZAÇÃO ----------------
+
+  if (currentStep === "codificacao_saida") { 
+    await sendToAPI(message, codificacaoInfo + "\nO aluno sugeriu o código da saída do programa.Se não precisar de melhoria elogie o estudante"); 
     currentStep = null; 
-    addMessage("Muito bem! Finalizamos todas as etapas do ENTENDIMENTO. Resta mais alguma dúvida?"); 
+    addMessage("🎉 Muito bem! Você completou todas as etapas: ENTENDIMENTO e CODIFICAÇÃO."); 
     return; 
   } 
 
   // fallback 
   sendToAPI(message); 
 } 
+
 
 // ---------------------- Eventos ---------------------- 
 chatBtn.addEventListener('click', toggleChat); 
