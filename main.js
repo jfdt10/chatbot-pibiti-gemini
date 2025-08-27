@@ -215,7 +215,7 @@ async function sendMessage() {
   if (currentStep === "desenvolvimento") { 
     await sendToAPI(message, "Analise este plano de resolução se não precisar de melhoria, elogie o estudante."); 
     currentStep = "codificacao_variaveis"; 
-    addMessage("✅ Legal! Finalizamos a etapa de ENTENDIMENTO."); 
+    addMessage("Legal! Finalizamos a etapa de ENTENDIMENTO."); 
     addMessage("Agora vamos para a etapa de CODIFICAÇÃO.\ncomo você declararia as variáveis de entrada?"); 
     return; 
   } 
