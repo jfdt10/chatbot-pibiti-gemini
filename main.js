@@ -1,4 +1,4 @@
-const API_KEY = "AIzaSyAp925PgZRGdwPKkdfA4PqAmLVeAMZDVeU"; // <- cole sua chave aqui 
+const API_KEY = "KEY"; // <- cole sua chave aqui 
 
 // Link CSV da planilha 
 const URL_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSdy74VMFCuowXzxgtAcYPDLmU6cj4crafrcd5DrvbltDRYN-_2JbaJZonYOK710n8sVUOhwS5bf9Tl/pub?output=csv"; 
