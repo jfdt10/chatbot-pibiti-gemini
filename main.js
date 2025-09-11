@@ -36,7 +36,6 @@ const planejamentoInfo = `
     3. Se o aluno demonstrar clareza (pseudocódigo consistente), confirme com "✅ Legal!" e direcione para o desenvolvimento.
 `;
 
-
 const codificacaoInfo = `
     Agora você está na etapa de CODIFICAÇÃO, seguindo a metodologia de Polya.  
     Fluxo:  
