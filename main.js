@@ -1,5 +1,5 @@
 // ---------------------- Configuração Inicial ----------------------
-const API_KEY = "AIzaSyA70x-ksVNleupthUOgwmq_jJb99TAhHKw"; // <- cole sua chave aqui
+const API_KEY = ""; // <- cole sua chave aqui
 
 // Link CSV da planilha
 const URL_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSdy74VMFCuowXzxgtAcYPDLmU6cj4crafrcd5DrvbltDRYN-_2JbaJZonYOK710n8sVUOhwS5bf9Tl/pub?output=csv";
